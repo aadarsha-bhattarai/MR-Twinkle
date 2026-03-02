@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mr Twinkie - Game</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // asset placeholders; replace paths with real images when available
+        const assets = {
+            ship1: 'assets/ship1.png',
+            ship2: 'assets/ship2.png',
+            ship3: 'assets/ship3.png',
+            bg: 'assets/background.png',
+            enemy: 'assets/enemy.png'
+        };
+        const images = {};
+        let currentShip = null;
+        let currentBg = null;
+
+        // game state
+        let gameState = 'title';
+        let canvas, ctx;
+        let ship, bullets = [], enemies = [];
+        let score = 0;
+
+        function loadAssets(callback) {
+            let loaded = 0;
+            const total = Object.keys(assets).length;
+            for (let key in assets) {
+                images[key] = new Image();
+                images[key].src = assets[key];
+                images[key].onload = () => {
+                    loaded++;
+                    if (loaded === total && callback) callback();
+                };
+                images[key].onerror = () => {
+                    images[key] = null; // fallback
+                    loaded++;
+                    if (loaded === total && callback) callback();
+                };
+            }
+        }
+
+        function showScreen(id) {
+            ['titleScreen','customization','gameCanvas','gameOverScreen','leaderboardScreen'].forEach(name=>{
+                const el=document.getElementById(name);
+                if(el) el.style.display = (id===name? 'block' : 'none');
+            });
+        }
+
+        function initTitle() {
+            gameState='title';
+            showScreen('titleScreen');
+        }
+
+        function chooseShip(id) {
+            currentShip = images[id];
+            document.querySelectorAll('.ship-option').forEach(el=>el.classList.remove('selected'));
+            document.getElementById(id).classList.add('selected');
+        }
+
+        function chooseBg(id) {
+            currentBg = images[id];
+            document.querySelectorAll('.bg-option').forEach(el=>el.classList.remove('selected'));
+            document.getElementById(id).classList.add('selected');
+        }
+
+        function startCustomization() {
+            gameState='custom';
+            showScreen('customization');
+        }
+
+        function startGame() {
+            gameState='playing';
+            showScreen('gameCanvas');
+            const canvasEl = document.getElementById('gameCanvas');
+            canvasEl.style.display = 'block';
+            if (!currentShip) currentShip = images.ship1;
+            if (!currentBg) currentBg = images.bg;
+            initGame();
+        }
+
+        function initGame() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            ship = { x: canvas.width/2, y: canvas.height-60, width:40, height:40, dx:0, dy:0 };
+            bullets = [];
+            enemies = [];
+            score = 0;
+            document.addEventListener('keydown', globalKeyDown);
+            document.addEventListener('keyup', globalKeyUp);
+            setInterval(spawnEnemy, 1000);
+            loop();
+        }
+
+        function saveScore(s) {
+            const key='mrTwinkieScores';
+            let scores = JSON.parse(localStorage.getItem(key) || '[]');
+            scores.push(s);
+            scores.sort((a,b)=>b-a);
+            if (scores.length>5) scores.length=5;
+            localStorage.setItem(key, JSON.stringify(scores));
+        }
+
+        function showLeaderboard() {
+            gameState='leaderboard';
+            showScreen('leaderboardScreen');
+            const list = document.getElementById('scoreList');
+            list.innerHTML='';
+            let scores = JSON.parse(localStorage.getItem('mrTwinkieScores') || '[]');
+            scores.forEach(sc=>{ const li=document.createElement('li'); li.textContent=sc; list.appendChild(li); });
+        }
+
+        function gameOver() {
+            gameState='gameover';
+            saveScore(score);
+            document.getElementById('finalScore').textContent = score;
+            showScreen('gameOverScreen');
+        }
+
+        function draw() {
+            if (currentBg) ctx.drawImage(currentBg,0,0,canvas.width,canvas.height);
+            else { ctx.fillStyle='black'; ctx.fillRect(0,0,canvas.width,canvas.height); }
+            if (currentShip) ctx.drawImage(currentShip, ship.x-20, ship.y-20,40,40);
+            else { ctx.fillStyle='cyan'; ctx.fillRect(ship.x-10,ship.y-10,20,20); }
+            ctx.fillStyle='yellow'; bullets.forEach(b=>ctx.fillRect(b.x,b.y,2,10));
+            if (images.enemy) enemies.forEach(e=>ctx.drawImage(images.enemy,e.x-15,e.y-15,30,30));
+            else { ctx.fillStyle='red'; enemies.forEach(e=>ctx.fillRect(e.x-10,e.y-10,20,20)); }
+            ctx.fillStyle='white'; ctx.font='16px Arial'; ctx.fillText('Score: '+score,10,20);
+        }
+
+        function update() {
+            ship.x += ship.dx;
+            ship.y += ship.dy;
+            ship.x = Math.max(0, Math.min(canvas.width, ship.x));
+            ship.y = Math.max(0, Math.min(canvas.height, ship.y));
+            bullets.forEach((b,i)=>{ b.y-=5; if(b.y<0) bullets.splice(i,1); });
+            enemies.forEach((e,i)=>{ e.y+=e.speed; if(e.y>canvas.height) enemies.splice(i,1); });
+            bullets.forEach((b,bi)=>{
+                enemies.forEach((e,ei)=>{
+                    if(b.x>e.x-15 && b.x<e.x+15 && b.y>e.y-15 && b.y<e.y+15){
+                        enemies.splice(ei,1); bullets.splice(bi,1); score+=10;
+                    }
+                });
+            });
+            enemies.forEach(e=>{
+                if(Math.hypot(ship.x-e.x, ship.y-e.y)<25){
+                    gameOver();
+                }
+            });
+        }
+
+        function loop() { if(gameState==='playing'){ ctx.clearRect(0,0,canvas.width,canvas.height); draw(); update(); } requestAnimationFrame(loop); }
+        function spawnEnemy(){ enemies.push({ x: Math.random()*canvas.width, y:-20, speed:1+Math.random()*2 }); }
+        function globalKeyDown(e){
+            if(gameState==='title' && e.key===' ') startCustomization();
+            if(gameState==='playing'){
+                if(e.key==='ArrowLeft') ship.dx=-3;
+                if(e.key==='ArrowRight') ship.dx=3;
+                if(e.key==='ArrowUp') ship.dy=-3;
+                if(e.key==='ArrowDown') ship.dy=3;
+                if(e.key===' ') bullets.push({x:ship.x,y:ship.y});
+            }
+        }
+        function globalKeyUp(e){
+            if(gameState==='playing'){
+                if(['ArrowLeft','ArrowRight'].includes(e.key)) ship.dx=0;
+                if(['ArrowUp','ArrowDown'].includes(e.key)) ship.dy=0;
+            }
+        }
+
+        window.onload = ()=>{ loadAssets(initTitle); };
+    </script>
+</head>
+<body>
+    <h1>Mr Twinkie</h1>
+    <!-- title screen -->
+    <div id="titleScreen" style="display:none;">
+        <div class="title-content">
+            <img src="assets/logo.png" alt="Mr Twinkie" class="title-logo" />
+            <h2 class="title-text">Mr Twinkie</h2>
+            <p class="title-subtext">Press <span class="key">SPACE</span> to start</p>
+        </div>
+    </div>
+
+    <!-- customization screen -->
+    <div id="customization" style="display:none;">
+        <h2>Customize & Start Game</h2>
+        <p>Select your ship (placeholder images):</p>
+        <img id="ship1" class="ship-option" src="assets/ship1.png" onclick="chooseShip('ship1')">
+        <img id="ship2" class="ship-option" src="assets/ship2.png" onclick="chooseShip('ship2')">
+        <img id="ship3" class="ship-option" src="assets/ship3.png" onclick="chooseShip('ship3')">
+        <p>Select background:</p>
+        <img id="bg" class="bg-option" src="assets/background.png" onclick="chooseBg('bg')">
+        <br>
+        <button onclick="startGame()">Start Game</button>
+    </div>
+
+    <!-- game canvas -->
+    <canvas id="gameCanvas" width="800" height="600" style="display:none;"></canvas>
+
+    <!-- game over screen -->
+    <div id="gameOverScreen" style="display:none; text-align:center; color:white;">
+        <h2>Game Over</h2>
+        <p>Your score: <span id="finalScore"></span></p>
+        <button onclick="initTitle()">Title</button>
+        <button onclick="showLeaderboard()">Leaderboard</button>
+    </div>
+
+    <!-- leaderboard screen -->
+    <div id="leaderboardScreen" style="display:none; text-align:center; color:white;">
+        <h2>Leaderboard</h2>
+        <ol id="scoreList"></ol>
+        <button onclick="initTitle()">Back to Title</button>
+    </div>
+
+    <p><a href="menu.html">Back to menu</a></p>
+</body>
+</html>

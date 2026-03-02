@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mr Twinkie - Login</title>
+    <link rel="stylesheet" href="style.css">
+    <script>
+        function doLogin(e) {
+            e.preventDefault();
+            var user = document.getElementById('user').value;
+            var pass = document.getElementById('pass').value;
+            if (!user || !pass) {
+                alert('Username and password required');
+                return;
+            }
+            // simple success; redirect to menu
+            window.location.href = 'menu.html';
+        }
+    </script>
+</head>
+<body>
+    <h1>Mr Twinkie</h1>
+    <h2>Login</h2>
+    <form onsubmit="doLogin(event)">
+        <label>Username:<br><input type="text" id="user"></label><br>
+        <label>Password:<br><input type="password" id="pass"></label><br>
+        <button type="submit">Login</button>
+    </form>
+    <p><a href="index.html">Back to home</a></p>
+</body>
+</html>
